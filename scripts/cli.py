@@ -1,5 +1,14 @@
 #!/usr/bin/env python
 
+"""
+VCF manipulation toolkit.
+
+Copyright (c) 2013 Leiden University Medical Center <humgen@lumc.nl>
+Copyright (c) 2013 Jeroen F.J. Laros <j.f.j.laros@lumc.nl>
+
+Licensed under the MIT license, see the LICENSE file.
+"""
+
 from __future__ import division
 
 import argparse
@@ -7,8 +16,33 @@ import argparse
 import vcf
 import vcf.utils as vcfutils
 
+__version_info__ = ('0', '0', '1')
+
+__version__ = '.'.join(__version_info__)
+__author__ = 'LUMC, Jeroen F.J. Laros'
+__contact__ = 'J.F.J.Laros@lumc.nl'
+__homepage__ = 'https://github.com/jfjlaros/PyVCF'
+
+usage = __doc__.split("\n\n\n")
+
+def doc_split(func):
+    return func.__doc__.split("\n\n")[0]
+
+def version(name):
+    return "%s version %s\n\nAuthor   : %s <%s>\nHomepage : %s" % (name,
+        __version__, __author__, __contact__, __homepage__)
+
 def diff(input_handles, output_handle, precision=10):
     """
+    Calculate the Jaccard distance between two VCF files.
+
+
+    :arg input_handles: List of two open readable handles to VCF files.
+    :type input_handles: list(stream)
+    :arg output_handle: An open writable handle.
+    :type output_handle: stream
+    :arg precision: Number of decimals in the output.
+    :type precision: int
     """
     first_vcf = vcf.Reader(input_handles[0])
     second_vcf = vcf.Reader(input_handles[1])
@@ -30,15 +64,25 @@ def diff(input_handles, output_handle, precision=10):
 #diff
 
 def main():
+    pair_in_parser = argparse.ArgumentParser(add_help=False)
+    pair_in_parser.add_argument("input_handles", metavar="INPUT", nargs=2,
+        type=argparse.FileType('r'), help="pair of input files")
+
+    output_parser = argparse.ArgumentParser(add_help=False)
+    output_parser.add_argument("output_handle", metavar="OUTPUT",
+        type=argparse.FileType('w'), default='-', help="output file")
+
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('input_handles', metavar='INPUT',
-        type=argparse.FileType('r'), nargs=2, help='VCF file')
-    parser.add_argument('-o', dest='output_handle',
-        type=argparse.FileType('w'), default='-', help='output file')
-    parser.add_argument('-p', dest='precision', type=int, default=10,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        )#description=usage[0], epilog=usage[1])
+    parser.add_argument('-v', action="version", version=version(parser.prog))
+    subparsers = parser.add_subparsers()
+
+    parser_diff = subparsers.add_parser("diff", parents=[pair_in_parser,
+        output_parser], description=doc_split(diff))
+    parser_diff.add_argument('-p', dest='precision', type=int, default=10,
         help='precision (%(type)s default=%(default)s)')
-    parser.set_defaults(func=diff)
+    parser_diff.set_defaults(func=diff)
 
     try:
         arguments = parser.parse_args()
