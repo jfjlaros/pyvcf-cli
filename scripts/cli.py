@@ -13,6 +13,7 @@ Licensed under the MIT license, see the LICENSE file.
 from __future__ import division
 
 import argparse
+import itertools
 import os
 
 import wiggelen
@@ -67,8 +68,37 @@ def diff(input_handles, output_handle, precision=10):
         value=symmetric_difference / total, precision=precision))
 #diff
 
+def vcf_record_to_wig(input_handle, field="AF", unpack=lambda x: x, prefix="",
+        snp_only=True):
+    """
+    Convert a VCF record to a wiggle record.
+
+    :arg input_handle: Open readable handle to a VCF file.
+    :type input_handle: stream
+    :arg field:
+    :type field: str
+    :arg unpack:
+    :type unpack: str
+    :arg prefix:
+    :type prefix: str
+    :arg snp_only:
+    :type snp_only: bool
+
+    :returns:
+    :rtype: object
+    """
+    old_position = ""
+    for record in vcf.Reader(input_handle):
+        if (record.is_snp or not snp_only) and field in record.INFO:
+            if record.CHROM + str(record.POS) != old_position:
+                yield ("{}{}".format(prefix, record.CHROM), record.POS,
+                    unpack(record.INFO[field]))
+            old_position = record.CHROM + str(record.POS)
+        #if
+#vcf_record_to_wig
+
 def vcf2wig(input_handle, output_handle, field="AF", prefix="",
-        function="min"):
+        unpack="x: x", snp_only=True):
     """
     Convert a VCF file to a wiggle track.
 
@@ -76,17 +106,19 @@ def vcf2wig(input_handle, output_handle, field="AF", prefix="",
     :type input_handle: stream
     :arg output_handle: Open writable handle to a wiggle track.
     :type output_handle: stream
+    :arg field:
+    :type field: str
+    :arg prefix:
+    :type prefix: str
+    :arg unpack:
+    :type unpack: str
+    :arg snp_only:
+    :type snp_only: bool
     """
-    def unpack(list_or_value):
-        if type(list_or_value) == list:
-            return func(list_or_value)
-        return list_or_value
+    unpack_function = eval("lambda {}".format(unpack))
 
-    reader = vcf.Reader(input_handle)
-    func = eval("lambda l: {}(l)".format(function))
-
-    wiggelen.write(map(lambda x: ("{}{}".format(prefix, x.CHROM), x.POS,
-        x.INFO.has_key(field) and unpack(x.INFO[field]) or 0.0), reader),
+    wiggelen.write(vcf_record_to_wig(input_handle, field=field,
+        unpack=unpack_function, prefix=prefix, snp_only=snp_only),
         track=output_handle,
         name=os.path.splitext(os.path.basename(output_handle.name))[0])
 #vcf2wig
@@ -123,7 +155,11 @@ def main():
     parser_vcf2wig = subparsers.add_parser("vcf2wig", parents=[input_parser,
         output_parser, prefix_parser], description=doc_split(vcf2wig))
     parser_vcf2wig.add_argument('-f', dest='field', type=str, default="AF",
-        help='INFO field to convert (%(type)s default=%(default)s)')
+        help='INFO field to convert (%(type)s default="%(default)s")')
+    parser_vcf2wig.add_argument('-u', dest='unpack', type=str, default="x: x",
+        help='unpack function (%(type)s default="%(default)s")')
+    parser_vcf2wig.add_argument('-s', dest='snp_only', default=False,
+        action="store_true", help="only convert SNPs")
     parser_vcf2wig.set_defaults(func=vcf2wig)
 
     try:
